@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Authenticity Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding-top: 2rem;
+        }
+        .analyzer-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .result-card {
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+        }
+        .spam-indicator {
+            height: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            background: linear-gradient(to right, #28a745, #ffc107, #dc3545);
+        }
+        .spam-progress {
+            height: 100%;
+            border-radius: 5px;
+            background-color: rgba(255,255,255,0.7);
+        }
+        .topic-badge {
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        #originalContent {
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="analyzer-container">
+            <h1 class="text-center mb-4">News Authenticity Analyzer</h1>
+            <p class="text-center text-muted mb-4">
+                Detect fake news, get summaries, and identify key topics in news articles
+            </p>
+            
+            <div class="mb-3">
+                <label for="urlInput" class="form-label">News Article URL</label>
+                <input type="url" class="form-control" id="urlInput" placeholder="https://example.com/news-article">
+                <div class="form-text">We'll extract the text automatically</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="textInput" class="form-label">Or paste news content directly</label>
+                <textarea class="form-control" id="textInput" rows="6" placeholder="Paste news content here..."></textarea>
+            </div>
+            
+            <div class="d-grid gap-2">
+                <button id="analyzeBtn" class="btn btn-primary btn-lg" onclick="analyzeNews()">
+                    <span id="analyzeText">Analyze News</span>
+                    <span id="analyzeSpinner" class="spinner-border spinner-border-sm" style="display: none;"></span>
+                </button>
+            </div>
+        </div>
+        
+        <div id="resultsContainer" style="display: none;">
+            <div class="analyzer-container">
+                <h2 class="mb-4">Analysis Results</h2>
+                
+                <div class="card result-card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Original Content</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="originalContent" class="mb-3"></div>
+                        <a href="#" id="showMoreLink" onclick="toggleFullContent(); return false;">Show more</a>
+                    </div>
+                </div>
+                
+                <div class="card result-card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Authenticity Analysis</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="spamResult"></div>
+                        <div class="spam-indicator mt-3">
+                            <div id="spamProgress" class="spam-progress" style="width: 0%"></div>
+                        </div>
+                        <div id="spamProbability" class="text-end mt-1"></div>
+                    </div>
+                </div>
+                
+                <div class="card result-card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="summaryContent"></div>
+                    </div>
+                </div>
+                
+                <div class="card result-card">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0">Key Topics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="topicsContainer"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let fullContent = '';
+        
+        function analyzeNews() {
+            const url = document.getElementById('urlInput').value;
+            const text = document.getElementById('textInput').value;
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const analyzeText = document.getElementById('analyzeText');
+            const analyzeSpinner = document.getElementById('analyzeSpinner');
+            
+            if (!url && !text) {
+                alert('Please enter either a URL or paste some text');
+                return;
+            }
+            
+            // Show loading state
+            analyzeText.textContent = 'Analyzing...';
+            analyzeSpinner.style.display = 'inline-block';
+            analyzeBtn.disabled = true;
+            
+            fetch('/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ url, text }),
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw new Error(err.error || 'Analysis failed') });
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Reset button
+                analyzeText.textContent = 'Analyze News';
+                analyzeSpinner.style.display = 'none';
+                analyzeBtn.disabled = false;
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                // Store full content
+                fullContent = data.text;
+                
+                // Display content preview
+                const previewLength = 1000;
+                const contentElement = document.getElementById('originalContent');
+                if (fullContent.length > previewLength) {
+                    contentElement.textContent = fullContent.substring(0, previewLength) + '...';
+                    document.getElementById('showMoreLink').style.display = 'inline';
+                } else {
+                    contentElement.textContent = fullContent;
+                    document.getElementById('showMoreLink').style.display = 'none';
+                }
+                
+                // Display spam result
+                const spamResult = document.getElementById('spamResult');
+                const spamProgress = document.getElementById('spamProgress');
+                const spamProbability = document.getElementById('spamProbability');
+                
+                if (data.is_spam) {
+                    spamResult.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle-fill"></i> 
+                            <strong>Potential Fake News Detected</strong>
+                            <p class="mb-0">This content appears to be unreliable with ${data.spam_probability}% probability of being fake.</p>
+                        </div>
+                    `;
+                } else {
+                    spamResult.innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="bi bi-check-circle-fill"></i> 
+                            <strong>Content Appears Authentic</strong>
+                            <p class="mb-0">This content appears to be reliable with ${100 - data.spam_probability}% probability of being genuine.</p>
+                        </div>
+                    `;
+                }
+                
+                // Update spam probability indicator
+                spamProgress.style.width = `${data.spam_probability}%`;
+                spamProbability.textContent = `Fake news probability: ${data.spam_probability}%`;
+                
+                // Display summary
+                document.getElementById('summaryContent').textContent = data.summary;
+                
+                // Display topics
+                const topicsContainer = document.getElementById('topicsContainer');
+                topicsContainer.innerHTML = '';
+                data.topics.forEach(topic => {
+                    const topicElement = document.createElement('div');
+                    topicElement.className = 'mb-2';
+                    topicElement.textContent = topic;
+                    topicsContainer.appendChild(topicElement);
+                });
+                
+                // Show results
+                document.getElementById('resultsContainer').style.display = 'block';
+                
+                // Scroll to results
+                document.getElementById('resultsContainer').scrollIntoView({ behavior: 'smooth' });
+            })
+            .catch(error => {
+                // Reset button
+                analyzeText.textContent = 'Analyze News';
+                analyzeSpinner.style.display = 'none';
+                analyzeBtn.disabled = false;
+                
+                console.error('Error:', error);
+                alert(error.message || 'An error occurred while analyzing the content');
+            });
+        }
+        
+        function toggleFullContent() {
+            const contentElement = document.getElementById('originalContent');
+            const showMoreLink = document.getElementById('showMoreLink');
+            
+            if (contentElement.textContent.length < fullContent.length) {
+                contentElement.textContent = fullContent;
+                showMoreLink.textContent = 'Show less';
+            } else {
+                const previewLength = 1000;
+                contentElement.textContent = fullContent.substring(0, previewLength) + '...';
+                showMoreLink.textContent = 'Show more';
+            }
+        }
+    </script>
+</body>
+</html>
